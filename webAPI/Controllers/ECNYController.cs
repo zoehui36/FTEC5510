@@ -7,7 +7,7 @@ using webAPI.DBclass;
 
 namespace webAPI.Controllers
 {
-    [Route("api/PBOC")]
+    [Route("PBOC")]
     [ApiController]
     public class ECNYController : ControllerBase
     {
@@ -54,12 +54,13 @@ namespace webAPI.Controllers
         }
 
         // GET api/<ECNYController>/5
-        [HttpGet("{accountNumber}")]
-        public List<Registration> QueryAccountBalance(string accountNumber)
+        [HttpGet("queryAccountECNYBalance/{accountNumber}")]
+        public int QueryAccountECNYBalance(string accountNumber)
         {
             List<Registration> resultList = new List<Registration>(); ;
             string myDb1ConnectionString = _configuration.GetConnectionString("PBOCCon");
             string query = "SELECT * FROM pboc.registration WHERE accountNumber='" + accountNumber + "'";
+            int count = 0;
             using (MySqlConnection con = new MySqlConnection(myDb1ConnectionString))
             {
                 MySqlCommand MyCommand2 = new MySqlCommand(query, con);
@@ -67,20 +68,22 @@ namespace webAPI.Controllers
                 con.Open();
                 using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
                 {
+                    
                     while (MyReader2.Read())
                     {
-                        resultList.Add(new Registration
-                        {
-                            ECNYNumber = MyReader2["ECNYNumber"].ToString(),
-                            AccountNumber = MyReader2["AccountNumber"].ToString(),
-                            Remark = MyReader2["remark"].ToString()
-                        });
+                        //resultList.Add(new Registration
+                        //{
+                        //    ECNYNumber = MyReader2["ECNYNumber"].ToString(),
+                        //    AccountNumber = MyReader2["AccountNumber"].ToString(),
+                        //    Remark = MyReader2["remark"].ToString()
+                        //});
+                        count++;
                     }
                 }
 
                 con.Close();
             }
-            return resultList;
+            return count;
         }
 
         // POST api/<ECNYController>
@@ -101,7 +104,7 @@ namespace webAPI.Controllers
         {
         }
 
-        [HttpPost("/GernerateECNY")]
+        [HttpPost("GernerateECNY")]
         public void GenerateECNY()
         {
             string myDb1ConnectionString = _configuration.GetConnectionString("PBOCCon");
