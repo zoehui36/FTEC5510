@@ -109,7 +109,7 @@ namespace webAPI.Controllers
         {
             string myDb1ConnectionString = _configuration.GetConnectionString("PBOCCon");
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 string query = "INSERT INTO pboc.registration(ECNYNumber) VALUES('" + Utilities.RandomString(8) + "') ";
                 using (MySqlConnection con = new MySqlConnection(myDb1ConnectionString))

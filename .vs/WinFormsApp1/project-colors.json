@@ -1,0 +1,26 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "e0b1e5cd-911f-404e-bab2-fcffb0740fff": {
+      "ProjectGuid": "e0b1e5cd-911f-404e-bab2-fcffb0740fff",
+      "DisplayName": "webAPI",
+      "ColorIndex": 0
+    },
+    "d5c20222-b81d-4749-a423-db418b00f258": {
+      "ProjectGuid": "d5c20222-b81d-4749-a423-db418b00f258",
+      "DisplayName": "UI",
+      "ColorIndex": 1
+    },
+    "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3": {
+      "ProjectGuid": "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3",
+      "DisplayName": "Miscellaneous Files",
+      "ColorIndex": -1
+    },
+    "e4c835ad-ca7c-4d0a-beec-b8a6a141d7e6": {
+      "ProjectGuid": "e4c835ad-ca7c-4d0a-beec-b8a6a141d7e6",
+      "DisplayName": "PBOCUI",
+      "ColorIndex": 2
+    }
+  },
+  "NextColorIndex": 3
+}

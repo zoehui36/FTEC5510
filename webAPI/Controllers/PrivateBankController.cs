@@ -57,8 +57,8 @@ namespace webAPI.Controllers
         }
 
 
-        [HttpPost("/{bankName}/GernerateAccount")]
-        public void GernerateAccount(string bankName)
+        [HttpPost("/{bankName}/GenerateAccount")]
+        public void GenerateAccount(string bankName)
         {
             string myDb1ConnectionString = _configuration.GetConnectionString(bankName);
             string accountLocation = "HK";
@@ -81,33 +81,35 @@ namespace webAPI.Controllers
             }
         }
 
-
-
-        [HttpPost("/{bankName}/WithdrawHKD/{ECNYAmount}")]
-        public void WithdrawHKD(double ECNYAmount)
-        {
-            try
-            {
-
-            }
-            catch (Exception ex)
-            {
-
-            }
-
-        }
-
-        [HttpPost("/{bankName}/BuyInECNY/{accountNumber}/{ECNYAmount}")]
-        public void BuyInECNY(string bankName, decimal ECNYAmount, string accountNumber)
+        [HttpPost("/{bankName}/BuyInECNY/{accountNumber}/{ECNYAmount}/{currentType}")]
+        public void BuyInECNY(string bankName, decimal ECNYAmount, string accountNumber, string currentType)
         {
             string pBankConnect = _configuration.GetConnectionString(bankName);
             string pbocConnstring = _configuration.GetConnectionString("PBOCCon");
+            decimal ECNYcoin = ECNYAmount / 100;
             //insert transcation record and reduce balance
             try
             {
                 using (MySqlConnection con = new MySqlConnection(pBankConnect))
                 {
-                    decimal amtNeed = ECNYToHKD(ECNYAmount);
+                    decimal amtNeed = 0;
+                    switch (currentType.ToUpper())
+                    {
+                        case "HKD":
+                            amtNeed = ECNYToHKD(ECNYAmount);
+                            break;
+                        case "THB":
+                            amtNeed = ECNYToTHB(ECNYAmount);
+                            break;
+                        case "CNY":
+                            amtNeed = ECNYAmount;
+                            break;
+                        default:
+                            amtNeed = 1;
+                            break;
+
+                    }
+
                     string query = "INSERT INTO " + bankName + ".conversionrecord (accountNumber, ConvertTime,ConvertAmount,ConvertECNY,Remark) " +
                         "VALUE('" + accountNumber + "','" + DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss") + "'," + ECNYAmount + ", 1 , null) ";
                     con.Open();
@@ -155,7 +157,7 @@ namespace webAPI.Controllers
                 using (MySqlConnection con = new MySqlConnection(pbocConnstring))
                 {
                     string query = "Update pboc.registration Set accountNumber = '" + accountNumber + "' " +
-                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber is NULL limit " + ECNYAmount + ") as DB1)";
+                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber is NULL limit " + ECNYcoin + ") as DB1)";
                     MySqlCommand MyCommand2 = new MySqlCommand(query, con);
                     con.Open();
                     using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
@@ -195,12 +197,204 @@ namespace webAPI.Controllers
 
         }
 
+        [HttpPost("/{bankName}/WithdrawHKD/{accountNumber}/{ECNYAmount}")]
+        public void WithdrawHKD(string bankName, decimal ECNYAmount, string accountNumber)
+        {
+            string pBankConnect = _configuration.GetConnectionString(bankName);
+            string pbocConnstring = _configuration.GetConnectionString("PBOCCon");
+            decimal ECNYcoin = ECNYAmount / 100;
+            //insert transcation record and reduce balance
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(pBankConnect))
+                {
+                    decimal amtWithdraw = ECNYToHKD(ECNYAmount);
+                    string query = "INSERT INTO " + bankName + ".conversionrecord (accountNumber, ConvertTime,ConvertAmount,ConvertECNY,Remark) " +
+                        "VALUE('" + accountNumber + "','" + DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss") + "'," + ECNYAmount + ", 0 , null) ";
+                    con.Open();
+                    using (MySqlCommand MyCommand2 = new MySqlCommand(query, con))
+                    {
+                        using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                        {
+                        }
+                    }
+                    int current = 0;
+                    query = "SELECT balance FROM " + bankName + ".accountInfo WHERE accountNumber= '" + accountNumber + "'";
+                    using (MySqlCommand MyCommand2 = new MySqlCommand(query, con))
+                    {
+                        using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                        {
+
+                            while (MyReader2.Read())
+                            {
+                                current = Convert.ToInt32(MyReader2["balance"]);
+                            }
+                        }
+                    }
+
+                    decimal finalBalance = current + amtWithdraw;
+
+                    query = "UPDATE " + bankName + ".accountInfo SET balance =" + finalBalance + " WHERE accountNumber = '" + accountNumber + "'";
+                    using (MySqlCommand MyCommand2 = new MySqlCommand(query, con))
+                    {
+                        using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                        {
+                        }
+                    }
+                    con.Close();
+
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            //release ECNY (mark its name)
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(pbocConnstring))
+                {
+                    string query = "Update pboc.registration Set accountNumber = null " +
+                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber ='" + accountNumber + "' limit " + ECNYcoin + ") as DB1)";
+                    MySqlCommand MyCommand2 = new MySqlCommand(query, con);
+                    con.Open();
+                    using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                    {
+                    }
+                    con.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+            //add transcaction record
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(pbocConnstring))
+                {
+                    string query = "insert into pboc.transcation(transTime,transAmount,payeeAccNum,receiverAccNum,Remark) " +
+                    "Value('" + DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss") + "', " + ECNYAmount + " ,'" + accountNumber + "', 'PBOC', null)";
+                    MySqlCommand MyCommand2 = new MySqlCommand(query, con);
+                    MySqlDataReader MyReader2;
+                    con.Open();
+                    MyReader2 = MyCommand2.ExecuteReader();
+                    while (MyReader2.Read())
+                    {
+                    }
+                    con.Close();
+                }
+            }
+            catch
+            {
+
+            }
+        }
+
+
+        [HttpPost("/{bankName}/WithdrawCNY/{accountNumber}/{ECNYAmount}")]
+        public void WithdrawCNY(string bankName, decimal ECNYAmount, string accountNumber)
+        {
+            string pBankConnect = _configuration.GetConnectionString(bankName);
+            string pbocConnstring = _configuration.GetConnectionString("PBOCCon");
+            decimal ECNYcoin = ECNYAmount / 100;
+            //insert transcation record and reduce balance
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(pBankConnect))
+                {
+                    decimal amtWithdraw = ECNYAmount;
+                    string query = "INSERT INTO " + bankName + ".conversionrecord (accountNumber, ConvertTime,ConvertAmount,ConvertECNY,Remark) " +
+                        "VALUE('" + accountNumber + "','" + DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss") + "'," + ECNYAmount + ", 0 , null) ";
+                    con.Open();
+                    using (MySqlCommand MyCommand2 = new MySqlCommand(query, con))
+                    {
+                        using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                        {
+                        }
+                    }
+                    int current = 0;
+                    query = "SELECT balance FROM " + bankName + ".accountInfo WHERE accountNumber= '" + accountNumber + "'";
+                    using (MySqlCommand MyCommand2 = new MySqlCommand(query, con))
+                    {
+                        using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                        {
+
+                            while (MyReader2.Read())
+                            {
+                                current = Convert.ToInt32(MyReader2["balance"]);
+                            }
+                        }
+                    }
+
+                    decimal finalBalance = current + amtWithdraw;
+
+                    query = "UPDATE " + bankName + ".accountInfo SET balance =" + finalBalance + " WHERE accountNumber = '" + accountNumber + "'";
+                    using (MySqlCommand MyCommand2 = new MySqlCommand(query, con))
+                    {
+                        using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                        {
+                        }
+                    }
+                    con.Close();
+
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            //release ECNY (mark its name)
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(pbocConnstring))
+                {
+                    string query = "Update pboc.registration Set accountNumber = null " +
+                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber ='" + accountNumber + "' limit " + ECNYcoin + ") as DB1)";
+                    MySqlCommand MyCommand2 = new MySqlCommand(query, con);
+                    con.Open();
+                    using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
+                    {
+                    }
+                    con.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+            //add transcaction record
+            try
+            {
+                using (MySqlConnection con = new MySqlConnection(pbocConnstring))
+                {
+                    string query = "insert into pboc.transcation(transTime,transAmount,payeeAccNum,receiverAccNum,Remark) " +
+                    "Value('" + DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss") + "', " + ECNYAmount + " ,'" + accountNumber + "', 'PBOC', null)";
+                    MySqlCommand MyCommand2 = new MySqlCommand(query, con);
+                    MySqlDataReader MyReader2;
+                    con.Open();
+                    MyReader2 = MyCommand2.ExecuteReader();
+                    while (MyReader2.Read())
+                    {
+                    }
+                    con.Close();
+                }
+            }
+            catch
+            {
+
+            }
+        }
+
 
         [HttpPost("/{bankName}/WithdrawTHAI/{accountNumber}/{ECNYAmount}")]
         public void WithdrawTHAI(string bankName, decimal ECNYAmount, string accountNumber)
         {
             string pBankConnect = _configuration.GetConnectionString(bankName);
             string pbocConnstring = _configuration.GetConnectionString("PBOCCon");
+            decimal ECNYcoin = ECNYAmount / 100;
             //insert transcation record and reduce balance
             try
             {
@@ -254,7 +448,7 @@ namespace webAPI.Controllers
                 using (MySqlConnection con = new MySqlConnection(pbocConnstring))
                 {
                     string query = "Update pboc.registration Set accountNumber = null " +
-                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber ='" + accountNumber + "' limit " + ECNYAmount + ") as DB1)";
+                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber ='" + accountNumber + "' limit " + ECNYcoin + ") as DB1)";
                     MySqlCommand MyCommand2 = new MySqlCommand(query, con);
                     con.Open();
                     using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
@@ -295,11 +489,11 @@ namespace webAPI.Controllers
         }
 
         [HttpPost("/{bankName}/payment/{accountNumber}/{ECNYAmount}/{receiveBank}/{receiveAccount}")]
-        public void Payment(string bankName, string receiveBank, double ECNYAmount, string accountNumber, string receiveAccount)
+        public void Payment(string bankName, string receiveBank, decimal ECNYAmount, string accountNumber, string receiveAccount)
         {
             string pBankConnect = _configuration.GetConnectionString(bankName);
             string pbocConnstring = _configuration.GetConnectionString("PBOCCon");
-
+            decimal ECNYcoin = ECNYAmount / 100;
             //check if 
 
             //change owernship of ECNY
@@ -308,7 +502,7 @@ namespace webAPI.Controllers
                 using (MySqlConnection con = new MySqlConnection(pbocConnstring))
                 {
                     string query = "Update pboc.registration Set accountNumber = '" + receiveAccount + "' " +
-                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber ='" + accountNumber + "' limit " + ECNYAmount + ") as DB1)";
+                        "WHERE regID in (SELECT * from(SELECT regID FROM  pboc.registration WHERE accountNumber ='" + accountNumber + "' limit " + ECNYcoin + ") as DB1)";
                     MySqlCommand MyCommand2 = new MySqlCommand(query, con);
                     con.Open();
                     using (MySqlDataReader MyReader2 = MyCommand2.ExecuteReader())
@@ -348,15 +542,21 @@ namespace webAPI.Controllers
 
         //withdraw
         [HttpGet("/ECNYToHKD/{ECNYamt}")]
-        private decimal ECNYToHKD(decimal ECNYamt)
+        public decimal ECNYToHKD(decimal ECNYamt)
         {
             return (decimal)Helper.getCNYRate(ECNYamt, "HKD") * ECNYamt;
         }
 
         [HttpGet("/ECNYToTHB/{ECNYamt}")]
-        private decimal ECNYToTHB(decimal ECNYamt)
+        public decimal ECNYToTHB(decimal ECNYamt)
         {
             return (decimal)Helper.getCNYRate(ECNYamt, "THB") * ECNYamt;
+        }
+
+        [HttpGet("/GetTHBRateOnly")]
+        public decimal GetTHBRateOnly()
+        {
+            return (decimal)Helper.getTHBRate();
         }
     }
 }

@@ -1,8 +1,4 @@
-﻿using System;
-using System.Net;
-using System.IO;
-using System.Net.Http.Headers;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 
 namespace webAPI
 {
@@ -13,8 +9,11 @@ namespace webAPI
         private const string hkdPatten = "https://v6.exchangerate-api.com/v6/d69e27adea2c4d87671e8fb4/latest/HKD";
         private const string thbPatten = "https://v6.exchangerate-api.com/v6/d69e27adea2c4d87671e8fb4/latest/THB";
 
+        private static decimal ecnyRateHKD, hkdRate, thaiRate;
+
         public static decimal getCNYRate(decimal amount, string fromCurrency)
         {
+
             try
             {
                 using (var webClient = new System.Net.WebClient())
@@ -24,8 +23,10 @@ namespace webAPI
                     switch (fromCurrency.ToUpper())
                     {
                         case "HKD":
+                            hkdRate = (decimal)resultList.conversion_rates.HKD;
                             return (decimal)resultList.conversion_rates.HKD;
                         case "THB":
+                            thaiRate = (decimal)resultList.conversion_rates.THB;
                             return (decimal)resultList.conversion_rates.THB;
                         default:
                             return 1;
@@ -40,15 +41,16 @@ namespace webAPI
 
         public static decimal getHKDRate(decimal amount)
         {
+
             try
             {
-
                 using (var webClient = new System.Net.WebClient())
                 {
                     var json = webClient.DownloadString(hkdPatten);
                     ExchangeResult resultList = (ExchangeResult)JsonConvert.DeserializeObject(json);
                     return (decimal)resultList.conversion_rates.CNY;
                 }
+
             }
             catch (Exception)
             {
@@ -56,16 +58,16 @@ namespace webAPI
             }
         }
 
-        public static decimal getTHBRate(decimal amount)
+        public static decimal getTHBRate()
         {
             try
             {
 
                 using (var webClient = new System.Net.WebClient())
                 {
-                    var json = webClient.DownloadString(hkdPatten);
-                    ExchangeResult resultList = (ExchangeResult)JsonConvert.DeserializeObject(json);
-                    return (decimal)resultList.conversion_rates.CNY;
+                    var json = webClient.DownloadString(cnyPatten);
+                    ExchangeResult resultList = JsonConvert.DeserializeObject<ExchangeResult>(json);
+                    return (decimal)resultList.conversion_rates.THB;
                 }
             }
             catch (Exception)
